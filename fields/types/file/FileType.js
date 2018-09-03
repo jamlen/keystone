@@ -1,3 +1,4 @@
+var grappling = require('grappling-hook');
 var FieldType = require('../Type');
 var util = require('util');
 var utils = require('keystone-utils');
@@ -8,12 +9,13 @@ var debug = require('debug')('keystone:fields:file');
  * File FieldType Constructor
  */
 function file (list, path, options) {
+	grappling.mixin(this).allowHooks('pre:upload');
 	this._underscoreMethods = ['format', 'upload', 'remove', 'reset'];
 	this._fixedSize = 'full';
 
 	if (!options.storage) {
 		throw new Error('Invalid Configuration\n\n'
-			+ 'File fields (' + list.key + '.' + path + ') require storage to be provided.');
+		+ 'File fields (' + list.key + '.' + path + ') require storage to be provided.');
 	}
 	this.storage = options.storage;
 	file.super_.call(this, list, path, options);
@@ -45,13 +47,16 @@ file.prototype.addToSchema = function (schema) {
  */
 file.prototype.upload = function (item, file, callback) {
 	var field = this;
-	// TODO; Validate there is actuall a file to upload
-	debug('[%s.%s] Uploading file for item %s:', this.list.key, this.path, item.id, file);
-	this.storage.uploadFile(file, function (err, result) {
+	this.callHook('pre:upload', item, file, function (err) {
 		if (err) return callback(err);
-		debug('[%s.%s] Uploaded file for item %s with result:', field.list.key, field.path, item.id, result);
-		item.set(field.path, result);
-		callback(null, result);
+		// TODO; Validate there is actuall a file to upload
+		debug('[%s.%s] Uploading file for item %s:', this.list.key, this.path, item.id, file);
+		this.storage.uploadFile(file, function (err, result) {
+			if (err) return callback(err);
+			debug('[%s.%s] Uploaded file for item %s with result:', field.list.key, field.path, item.id, result);
+			item.set(field.path, result);
+			callback(null, result);
+		});
 	});
 };
 
